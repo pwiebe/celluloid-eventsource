@@ -37,7 +37,7 @@ module Celluloid
     # url - the url as string
     # query - the query string as hash
     # headers - the headers for the request as hash
-    def initialize(url, query={}, headers={})
+    def initialize(url, query={}, body = nil, headers={})
       @url = url
       @query = query
       @query_string = query.map { |k,v| "#{k}=#{v}"}.join('&')
@@ -48,6 +48,10 @@ module Celluloid
       @retry = 3 # seconds
       @inactivity_timeout = 60 # seconds
 
+      @options = {:socket_class => Celluloid::IO::TCPSocket,
+                  :ssl_socket_class => Celluloid::IO::SSLSocket}
+      @options[:body] = body if body
+      @options[:headers] = headers
       @opens = []
       @errors = []
       @messages = []
@@ -99,14 +103,15 @@ module Celluloid
     protected
 
     def listen
+      full_url = "#{@url}"
+      full_url += "?#{@query_string}" if @query_string
       Http.
            with_headers({'Cache-Control' => 'no-cache', 'Accept' => 'text/event-stream'}).
            on(:request) { |r| puts "REQUEST #{r.inspect}"}.
            on(:response) { |r| puts "RESPONSE #{r.inspect}"; handle_response(r)}.
            on(:connect) { |r| puts "CONNECT #{r.inspect}"; handle_connect(r)}.
-           get("#{@url}?#{@query_string}",
-           :socket_class => Celluloid::IO::TCPSocket,
-           :ssl_socket_class => Celluloid::IO::SSLSocket)
+           get(full_url, @options
+           )
       nil
     rescue => e
       puts "LISTEN EXCEPTION: #{e.class}:#{e.message}"
